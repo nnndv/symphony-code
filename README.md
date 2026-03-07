@@ -15,8 +15,9 @@ See [AGENTS.md](AGENTS.md) for the full agent-oriented project guide, or browse 
 
 - Bun 1.0+
 - `gh` CLI (authenticated)
-- `claude` CLI
-- `ANTHROPIC_API_KEY` environment variable
+- `claude` CLI, authenticated via one of:
+  - `ANTHROPIC_API_KEY` environment variable (API key billing)
+  - `claude auth login` (Claude Pro/Max subscription)
 
 ## Setup
 

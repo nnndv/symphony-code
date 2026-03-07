@@ -111,4 +111,5 @@ These are merged into a single `appLayer` and provided to the orchestrator.
 | `bun` | Runtime (>=1.0) | Yes |
 | `gh` | GitHub CLI for issue CRUD | Yes |
 | `claude` | Anthropic CLI for agent execution | Yes |
-| `ANTHROPIC_API_KEY` | Env var inherited by claude subprocess | Yes |
+| `ANTHROPIC_API_KEY` | API key auth (inherited by claude subprocess) | One of these two |
+| `claude auth login` | Subscription auth via stored OAuth credentials | One of these two |

@@ -48,7 +48,7 @@ test("fails when X is missing", async () => {
 
 | File | Test file | What's covered |
 |---|---|---|
-| `src/config.ts` | `test/config.test.ts` | `validateEnv` — missing and present `ANTHROPIC_API_KEY` |
+| `src/config.ts` | `test/config.test.ts` | `validateEnv` — API key, OAuth token env var, credentials file, and no-auth failure |
 | `src/ui.ts`  | `test/ui.test.ts`  | `ui` export shape |
 | `src/log.ts` | `test/log.test.ts` | `clackLoggerLayer` is a valid Layer |
 
@@ -84,7 +84,11 @@ gh repo create myorg/test-symphony --public
 gh issue create --repo myorg/test-symphony --title "Test issue" --label symphony
 
 # 2. Run Symphony
+# API key auth:
 ANTHROPIC_API_KEY=sk-... bun run src/cli.ts ./WORKFLOW.md
+
+# Or with subscription auth (claude auth login already done):
+bun run src/cli.ts ./WORKFLOW.md
 
 # 3. Verify
 # - TUI shows the issue dispatched

@@ -1,4 +1,52 @@
 import { Context, Layer, Effect, Data } from "effect"
+import { existsSync, readFileSync } from "fs"
+import { join } from "path"
+import { homedir } from "os"
+import { spawnSync } from "child_process"
+
+function hasValidAccessToken(data: unknown): boolean {
+  if (typeof data !== "object" || data === null) return false
+  const d = data as Record<string, unknown>
+  const token =
+    (d["claudeAiOauth"] as Record<string, unknown> | undefined)?.["accessToken"] ??
+    d["accessToken"]
+  return typeof token === "string" && token.length > 0
+}
+
+function hasSubscriptionAuth(): boolean {
+  if (process.env["CLAUDE_CODE_OAUTH_TOKEN"]) return true
+
+  // Check credentials file (Linux/Windows primary store; also present on macOS if not migrated to Keychain)
+  const configDir = process.env["CLAUDE_CONFIG_DIR"] ?? join(homedir(), ".claude")
+  const credentialsPath = join(configDir, ".credentials.json")
+  if (existsSync(credentialsPath)) {
+    try {
+      return hasValidAccessToken(JSON.parse(readFileSync(credentialsPath, "utf8")))
+    } catch {
+      // fall through to Keychain check
+    }
+  }
+
+  // macOS Keychain fallback — Claude Code stores credentials here after login on Mac.
+  // CLAUDE_SECURITY_BIN can override the binary path (used in tests).
+  if (process.platform === "darwin" || process.env["CLAUDE_SECURITY_BIN"]) {
+    const securityBin = process.env["CLAUDE_SECURITY_BIN"] ?? "/usr/bin/security"
+    try {
+      const result = spawnSync(
+        securityBin,
+        ["find-generic-password", "-s", "Claude Code-credentials", "-w"],
+        { encoding: "utf8" },
+      )
+      if (result.status === 0 && result.stdout?.trim()) {
+        return hasValidAccessToken(JSON.parse(result.stdout.trim()))
+      }
+    } catch {
+      // no Keychain entry or security command unavailable
+    }
+  }
+
+  return false
+}
 
 export interface SymphonyConfig {
   readonly pollIntervalMs: number
@@ -92,12 +140,15 @@ export class ConfigError extends Data.TaggedError("ConfigError")<{
   readonly reason: string
 }> {}
 
-/** Validate required environment variables are present. */
+/** Validate that at least one Claude authentication method is configured. */
 export function validateEnv(): Effect.Effect<void, ConfigError> {
   return Effect.gen(function* () {
-    if (!process.env["ANTHROPIC_API_KEY"]) {
+    if (!process.env["ANTHROPIC_API_KEY"] && !hasSubscriptionAuth()) {
       yield* Effect.fail(
-        new ConfigError({ reason: "ANTHROPIC_API_KEY is required but not set." }),
+        new ConfigError({
+          reason:
+            "No Claude authentication found. Set ANTHROPIC_API_KEY for API access, or run `claude auth login` for subscription access (Claude Pro/Max).",
+        }),
       )
     }
   })
