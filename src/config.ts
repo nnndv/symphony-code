@@ -97,7 +97,7 @@ export function validateEnv(): Effect.Effect<void, ConfigError> {
   return Effect.gen(function* () {
     if (!process.env["ANTHROPIC_API_KEY"]) {
       yield* Effect.fail(
-        new ConfigError({ reason: "ANTHROPIC_API_KEY is required but not set" }),
+        new ConfigError({ reason: "ANTHROPIC_API_KEY is required but not set." }),
       )
     }
   })

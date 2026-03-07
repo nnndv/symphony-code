@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { Effect, Layer } from "effect"
+import { Effect, Layer, Cause } from "effect"
 import { parseArgs } from "node:util"
 import { ConfigLive, configFromWorkflow, validateEnv } from "./config.js"
 import { EventBusLive } from "./event-bus.js"
@@ -116,7 +116,10 @@ process.on("SIGTERM", () => {
 Effect.runFork(program.pipe(
   Effect.provide(noTui ? clackLoggerLayer : Layer.empty),
   Effect.catchAllCause((cause) => {
-    const message = cause.toString().split("\n")[0] ?? "Unknown error"
+    const err = Cause.squash(cause)
+    const message = err instanceof Error
+      ? ((err as unknown as Record<string, unknown>)["reason"] as string | undefined ?? err.message)
+      : String(err)
     ui.cancel(message)
     return Effect.sync(() => process.exit(1))
   }),
