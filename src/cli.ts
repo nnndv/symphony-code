@@ -93,7 +93,10 @@ const program = Effect.gen(function* () {
     if (config.tui) {
       yield* Effect.fork(startTui(orchestrator.state))
     } else {
-      ui.info(`Dashboard: http://localhost:${config.httpPort}`)
+      ui.note(
+        `http://localhost:${config.httpPort}`,
+        '🚀 Dashboard ready at:'
+      )
       ui.info("Press Ctrl+C to stop")
     }
 

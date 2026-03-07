@@ -150,8 +150,6 @@ export function startServer(
         return new Response("Not Found", { status: 404 })
       },
     })
-
-    yield* Effect.logInfo(`Dashboard: http://localhost:${port}`)
     yield* Effect.never
   })
 }
