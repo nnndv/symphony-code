@@ -12,12 +12,13 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "effect": "^3.19",
+    "@clack/prompts": "^1.1.0",
     "@effect/platform": "^0.94",
     "@effect/platform-bun": "^0.87",
     "@effect/schema": "^0.75",
-    "yaml": "^2.7",
-    "liquidjs": "^10.21"
+    "effect": "^3.19",
+    "liquidjs": "^10.21",
+    "yaml": "^2.7"
   },
   "devDependencies": {
     "@types/bun": "latest",
