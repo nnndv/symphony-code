@@ -1,4 +1,4 @@
-import { Context, Layer, Effect } from "effect"
+import { Context, Layer, Effect, Data } from "effect"
 
 export interface SymphonyConfig {
   readonly pollIntervalMs: number
@@ -87,3 +87,18 @@ export function configFromWorkflow(
 
 export const ConfigLive = (config: SymphonyConfig): Layer.Layer<Config> =>
   Layer.succeed(Config, config)
+
+export class ConfigError extends Data.TaggedError("ConfigError")<{
+  readonly reason: string
+}> {}
+
+/** Validate required environment variables are present. */
+export function validateEnv(): Effect.Effect<void, ConfigError> {
+  return Effect.gen(function* () {
+    if (!process.env["ANTHROPIC_API_KEY"]) {
+      yield* Effect.fail(
+        new ConfigError({ reason: "ANTHROPIC_API_KEY is required but not set" }),
+      )
+    }
+  })
+}

@@ -1,50 +1,70 @@
 # Testing
 
-## Current State
-
-Symphony is in active development. The test infrastructure is not yet in place.
-
-## Verification
-
-The only available check today:
+## Running Tests
 
 ```bash
-bun run typecheck     # tsc --noEmit — verifies all types compile
+bun test              # run all tests
+bun test test/        # explicit path (same result)
+bun run typecheck     # tsc --noEmit — type-check src/ and test/
 ```
 
-## Test Strategy (Planned)
+## Test Location
 
-### Unit Tests
+All test files live in `test/` at the project root, mirroring `src/` structure:
 
-Use `bun:test` (built-in Bun test runner).
+```
+test/
+  config.test.ts    → tests for src/config.ts
+```
 
-**Priority targets:**
-1. `workflow.ts` — YAML parsing, front matter splitting, edge cases (no delimiters, empty body)
-2. `github/issue.ts` — `fromGh` parsing, `parsePriority`, `parseBlockers`
-3. `config.ts` — `configFromWorkflow` mapping, `$ENV_VAR` resolution, defaults
-4. `prompt-builder.ts` — Liquid rendering with all template variables
+Imports from test files use relative paths into `src/`:
 
-**Effect testing pattern:**
 ```typescript
-import { Effect } from "effect"
+import { validateEnv, ConfigError } from "../src/config.js"
+```
+
+## Effect Testing Pattern
+
+Use `Effect.runPromiseExit` to inspect typed failures without throwing:
+
+```typescript
+import { Effect, Exit, Cause, Option } from "effect"
 import { expect, test } from "bun:test"
 
-test("parseWorkflow splits front matter", async () => {
-  const result = await Effect.runPromise(parseWorkflow("---\nfoo: bar\n---\nhello"))
-  expect(result.config).toEqual({ foo: "bar" })
-  expect(result.template).toBe("hello")
+test("fails when X is missing", async () => {
+  const exit = await Effect.runPromiseExit(myEffect())
+  expect(Exit.isFailure(exit)).toBe(true)
+  if (Exit.isFailure(exit)) {
+    const error = Cause.failureOption(exit.cause)
+    expect(Option.isSome(error)).toBe(true)
+    if (Option.isSome(error)) {
+      expect(error.value).toBeInstanceOf(MyError)
+    }
+  }
 })
 ```
 
+## Coverage
+
+| File | Test file | What's covered |
+|---|---|---|
+| `src/config.ts` | `test/config.test.ts` | `validateEnv` — missing and present `ANTHROPIC_API_KEY` |
+
+## Test Strategy
+
+### Unit Tests (priority order)
+
+1. `config.ts` — `configFromWorkflow` mapping, `$ENV_VAR` resolution, `validateEnv`
+2. `workflow.ts` — YAML parsing, front matter splitting, edge cases
+3. `github/issue.ts` — `fromGh` parsing, `parsePriority`, `parseBlockers`
+4. `prompt-builder.ts` — Liquid rendering with all template variables
+
 ### Integration Tests
 
-These require `gh` and `claude` CLIs. Use test doubles:
-- Mock `gh` via a shell script in `$PATH` that returns canned JSON
-- Mock `claude` similarly, returning stream-json output
+These require `gh` and `claude` CLIs. Use shell script test doubles in `$PATH` returning canned output.
 
-**Priority targets:**
-1. `github/client.ts` — verify argument construction, JSON parsing
-2. `claude-session.ts` — verify stream parsing, abort handling
+1. `github/client.ts` — argument construction, JSON parsing
+2. `claude-session.ts` — stream parsing, abort handling
 3. `agent-runner.ts` — full pipeline with mocked externals
 
 ### What NOT to Test

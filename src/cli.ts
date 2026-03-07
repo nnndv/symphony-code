@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 import { Effect, Layer, Fiber } from "effect"
 import { parseArgs } from "node:util"
-import { Config, ConfigLive, configFromWorkflow, defaultConfig } from "./config.js"
+import { Config, ConfigLive, configFromWorkflow, defaultConfig, validateEnv } from "./config.js"
 import { EventBus, EventBusLive } from "./event-bus.js"
 import { TrackerService, TrackerLive } from "./github/tracker.js"
 import { parseWorkflowFile } from "./workflow.js"
@@ -45,6 +45,8 @@ const port = values["port"] ? Number(values["port"]) : undefined
 const noTui = values["no-tui"] === true
 
 const program = Effect.gen(function* () {
+  yield* validateEnv()
+
   // Parse workflow
   const workflow = yield* parseWorkflowFile(workflowPath)
 
