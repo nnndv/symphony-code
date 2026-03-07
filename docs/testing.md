@@ -49,6 +49,8 @@ test("fails when X is missing", async () => {
 | File | Test file | What's covered |
 |---|---|---|
 | `src/config.ts` | `test/config.test.ts` | `validateEnv` — missing and present `ANTHROPIC_API_KEY` |
+| `src/ui.ts`  | `test/ui.test.ts`  | `ui` export shape |
+| `src/log.ts` | `test/log.test.ts` | `clackLoggerLayer` is a valid Layer |
 
 ## Test Strategy
 

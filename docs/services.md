@@ -73,8 +73,12 @@
 
 ### Log (`src/log.ts`)
 - **Purpose:** JSON-line structured logging.
-- **Exports:** `fileLoggerLayer(path)`, `consoleJsonLoggerLayer`
+- **Exports:** `fileLoggerLayer(path)`, `consoleJsonLoggerLayer`, `clackLoggerLayer`
 - **Format:** `{ timestamp, level, message }` per line
+
+### `src/ui.ts`
+
+Thin wrapper over `@clack/prompts`. Exports a single `ui` object with `intro`, `outro`, `cancel`, `info`, `success`, `warn`, `error`, and `spinner`. No Effect dependency — safe to call anywhere including outside Effect pipelines.
 
 ### TUI Dashboard (`src/dashboard/tui.ts`)
 - **Purpose:** ANSI terminal dashboard. Subscribes to EventBus, renders every 1s.
