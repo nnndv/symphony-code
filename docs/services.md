@@ -12,11 +12,11 @@
 - **Tag:** `EventBus`
 - **Type:** `PubSub<SymphonyEvent>`
 - **Layer:** `EventBusLive` — unbounded PubSub
-- **Event types:** `IssueDispatched`, `IssueCompleted`, `IssueFailed`, `AgentStarted`, `AgentCompleted`, `AgentFailed`, `ClaudeMessage`, `ClaudeStatus`
+- **Event types:** `PollCompleted`, `PollFailed`, `IssueDispatched`, `IssueCompleted`, `IssueFailed`, `IssueStalled`, `AgentStarted`, `AgentCompleted`, `AgentFailed`, `AgentCompletedWithoutPR`, `ClaudeMessage`, `ClaudeStatus`
 
 ### TrackerService (`src/github/tracker.ts`)
 - **Tag:** `TrackerService`
-- **Type:** `Tracker` interface — `listIssues()`, `getIssue(id)`, `comment(id, body)`, `close(id)`
+- **Type:** `Tracker` interface — `listIssues()`, `getIssue(id)`, `comment(id, body)`, `close(id)`, `hasLinkedPR(id)`
 - **Layer:** `TrackerLive` (requires Config)
 - **Error:** `GhCliError`
 
@@ -28,10 +28,12 @@
 - **Exports:** `startOrchestrator(workflow, hooks)` → `OrchestratorHandle`
 - **Requires:** Config, EventBus, TrackerService
 - **Internal functions:** `pollAndDispatch`, `checkStalls`, `processRetries`, `filterCandidates`
+- **Events published:** `PollCompleted` / `PollFailed` after each poll, `IssueDispatched` per dispatch, `IssueStalled` on stall detection
 
 ### Agent Runner (`src/agent-runner.ts`)
 - **Purpose:** Full agent pipeline for a single issue.
-- **Pipeline:** workspace → hooks → prompt → claude → comment → cleanup
+- **Pipeline:** workspace → hooks → prompt → claude → hooks → PR verification → comment → cleanup
+- **PR verification:** After the agent finishes, checks `tracker.hasLinkedPR(id)` and re-fetches issue status. If no PR exists and the issue is still open, fails with an error (triggering orchestrator retry).
 - **Exports:** `runAgent(issue, workflow, hooks)` → `AgentResult`
 - **Errors:** `WorkspaceError | TemplateError | GhCliError | Error`
 
@@ -43,7 +45,7 @@
 
 ### GitHub Client (`src/github/client.ts`)
 - **Purpose:** Raw `gh` CLI wrapper.
-- **Exports:** `listIssues(repo, labels, state)`, `getIssue(repo, number)`, `comment(repo, number, body)`, `close(repo, number)`
+- **Exports:** `listIssues(repo, labels, state)`, `getIssue(repo, number)`, `comment(repo, number, body)`, `close(repo, number)`, `listLinkedPRs(repo, issueNumber)` → `LinkedPR[]`
 - **Error:** `GhCliError { code, output }`
 - **Safety:** Uses argument arrays, never string interpolation.
 
@@ -84,10 +86,18 @@ Thin wrapper over `@clack/prompts`. Exports a single `ui` object with `intro`, `
 - **Purpose:** ANSI terminal dashboard. Subscribes to EventBus, renders every 1s.
 - **Shows:** Running agents (number, title, duration), retry queue, recent completions, cost/turn totals.
 
+### Terminal Log (`src/dashboard/terminal-log.ts`)
+- **Purpose:** Event log for `--no-tui` mode. Subscribes to EventBus, outputs via `ui` (clack).
+- **Exports:** `startTerminalLog()` → `Effect<void, never, EventBus | Config>`
+- **Logs:** GitHub connection status (first poll success/failure), dispatches, completions, failures, stalls.
+- **Verbose mode (`--verbose`):** When enabled, also logs `ClaudeMessage` events (extracted text + tool names, truncated to 200 chars) and `ClaudeStatus` events, prefixed with the session ID.
+- **Skips (default):** ClaudeMessage, ClaudeStatus, AgentStarted, AgentCompleted.
+
 ### HTTP Dashboard (`src/dashboard/server.ts`)
-- **Purpose:** Web dashboard + API.
+- **Purpose:** Web dashboard + API. Shows repo name under heading.
+- **Signature:** `startServer(port, repo, orchestratorState, refreshFn)`
 - **Routes:**
-  - `GET /` — Static HTML dashboard
-  - `GET /api/v1/state` — JSON state snapshot
+  - `GET /` — Static HTML dashboard (shows repo name)
+  - `GET /api/v1/state` — JSON state snapshot (includes `repo` field)
   - `POST /api/v1/refresh` — Trigger immediate poll
   - `GET /api/v1/events` — SSE event stream

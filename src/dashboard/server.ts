@@ -11,7 +11,8 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: -apple-system, system-ui, sans-serif; background: #111; color: #eee; padding: 24px; }
-    h1 { font-size: 24px; margin-bottom: 24px; }
+    h1 { font-size: 24px; margin-bottom: 4px; }
+    .repo-name { font-size: 14px; color: #888; margin-bottom: 24px; font-family: monospace; }
     .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
     .card { background: #1a1a2e; border-radius: 8px; padding: 16px; }
     .card-label { font-size: 12px; color: #888; margin-bottom: 4px; }
@@ -34,7 +35,7 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
 </head>
 <body>
   <div class="header">
-    <h1>Symphony Dashboard</h1>
+    <div><h1>Symphony Dashboard</h1><div class="repo-name" id="repo-name"></div></div>
     <button onclick="refresh()">Refresh Now</button>
   </div>
   <div class="grid">
@@ -69,6 +70,7 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
       document.getElementById('completed-count').textContent = s.completed.length;
       document.getElementById('total-cost').textContent = '$' + s.tokenTotals.costUsd.toFixed(4);
       document.getElementById('running-table').innerHTML = s.running.map(id => '<tr><td>#' + id + '</td></tr>').join('');
+      if (s.repo) document.getElementById('repo-name').textContent = s.repo;
     }
     async function refresh() { await fetch('/api/v1/refresh', { method: 'POST' }); fetchState(); }
     fetchState();
@@ -80,6 +82,7 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
 /** Start the HTTP + SSE dashboard server. */
 export function startServer(
   port: number,
+  repo: string,
   orchestratorState: Ref.Ref<OrchestratorState>,
   refreshFn: () => Effect.Effect<void>,
 ): Effect.Effect<void, never, EventBus> {
@@ -101,7 +104,7 @@ export function startServer(
         // JSON state endpoint
         if (url.pathname === "/api/v1/state" && req.method === "GET") {
           const snapshot = await Effect.runPromise(getStateSnapshot(orchestratorState))
-          return Response.json(snapshot)
+          return Response.json({ ...snapshot, repo })
         }
 
         // Refresh trigger

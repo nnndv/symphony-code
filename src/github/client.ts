@@ -93,3 +93,50 @@ export function close(
 ): Effect.Effect<void, GhCliError> {
   return gh(["issue", "close", "--repo", repo, String(number)]).pipe(Effect.asVoid)
 }
+
+export interface LinkedPR {
+  readonly number: number
+  readonly state: string
+  readonly url: string
+}
+
+/** List pull requests that close/reference the given issue. */
+export function listLinkedPRs(
+  repo: string,
+  issueNumber: number,
+): Effect.Effect<LinkedPR[], GhCliError> {
+  // Use the GitHub API to find PRs that reference this issue via timeline events
+  return gh([
+    "api",
+    `repos/${repo}/issues/${issueNumber}/timeline`,
+    "--jq",
+    `[.[] | select(.source.issue.pull_request != null) | {number: .source.issue.number, state: .source.issue.state, url: .source.issue.html_url}]`,
+  ]).pipe(
+    Effect.flatMap((json) =>
+      Effect.try({
+        try: () => {
+          const parsed = JSON.parse(json || "[]") as LinkedPR[]
+          return parsed
+        },
+        catch: () => new GhCliError({ code: 0, output: "Failed to parse linked PRs" }),
+      }),
+    ),
+    // Fallback: if timeline API fails, try searching for PRs mentioning the issue
+    Effect.catchAll(() =>
+      gh([
+        "pr", "list",
+        "--repo", repo,
+        "--search", `issue:${issueNumber}`,
+        "--json", "number,state,url",
+        "--limit", "10",
+      ]).pipe(
+        Effect.flatMap((json) =>
+          Effect.try({
+            try: () => JSON.parse(json || "[]") as LinkedPR[],
+            catch: () => new GhCliError({ code: 0, output: "Failed to parse PR search" }),
+          }),
+        ),
+      ),
+    ),
+  )
+}

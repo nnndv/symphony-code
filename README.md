@@ -47,7 +47,8 @@ This will:
 symphony-code <workflow.md> [options]
 
 --port, -p PORT   HTTP port for web dashboard (default: 4000)
---no-tui          Disable the terminal dashboard
+--no-tui          Disable the terminal dashboard (events logged inline instead)
+--verbose, -v     Show Claude agent output stream (requires --no-tui)
 --help, -h        Show help message
 ```
 
@@ -103,11 +104,13 @@ src/
 ├── workspace.ts         # Workspace lifecycle + hooks
 ├── prompt-builder.ts    # Liquid template renderer
 ├── log.ts               # JSON structured logger
+├── ui.ts                # Clack prompts wrapper
 ├── github/
 │   ├── issue.ts         # Issue type + gh JSON parsing
 │   ├── client.ts        # gh CLI wrapper
 │   └── tracker.ts       # Tracker service
 └── dashboard/
     ├── tui.ts           # ANSI terminal dashboard
+    ├── terminal-log.ts  # Event log for --no-tui mode
     └── server.ts        # HTTP + SSE web dashboard
 ```

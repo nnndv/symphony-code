@@ -8,6 +8,7 @@ export interface Tracker {
   readonly getIssue: (id: string) => Effect.Effect<Issue, GhClient.GhCliError>
   readonly comment: (id: string, body: string) => Effect.Effect<void, GhClient.GhCliError>
   readonly close: (id: string) => Effect.Effect<void, GhClient.GhCliError>
+  readonly hasLinkedPR: (id: string) => Effect.Effect<boolean, GhClient.GhCliError>
 }
 
 export class TrackerService extends Context.Tag("Tracker")<TrackerService, Tracker>() {}
@@ -32,5 +33,10 @@ export const TrackerLive: Layer.Layer<TrackerService, never, Config> = Layer.eff
 
     close: (id: string) =>
       GhClient.close(config.trackerRepo, Number(id)),
+
+    hasLinkedPR: (id: string) =>
+      GhClient.listLinkedPRs(config.trackerRepo, Number(id)).pipe(
+        Effect.map((prs) => prs.length > 0),
+      ),
   })),
 )

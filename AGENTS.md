@@ -19,6 +19,7 @@ src/cli.ts → src/orchestrator.ts → src/agent-runner.ts → src/claude-sessio
             src/github/issue.ts
                     ↓
             src/event-bus.ts → src/dashboard/tui.ts
+                             → src/dashboard/terminal-log.ts
                              → src/dashboard/server.ts
 ```
 
@@ -46,16 +47,17 @@ Do not import from outer layers into inner layers. See `docs/architecture.md`.
 ## Common Tasks
 
 - **Add a new config key:** `src/config.ts` (interface + default + mapping) → `docs/workflow-format.md`
-- **Add a new event type:** `src/event-bus.ts` (union member) → consumers in `tui.ts`, `server.ts`
+- **Add a new event type:** `src/event-bus.ts` (union member) → consumers in `tui.ts`, `terminal-log.ts`, `server.ts`
 - **Change agent behavior:** `src/agent-runner.ts` (pipeline) → `src/claude-session.ts` (CLI args)
 - **Add an API endpoint:** `src/dashboard/server.ts` (route handler in `fetch`)
 
 ## Running
 
 ```bash
-bun run src/cli.ts ./WORKFLOW.md              # default port 4000
-bun run src/cli.ts ./WORKFLOW.md --port 8080  # custom port
-bun run src/cli.ts ./WORKFLOW.md --no-tui     # headless mode
+bun run src/cli.ts ./WORKFLOW.md                      # default port 4000
+bun run src/cli.ts ./WORKFLOW.md --port 8080          # custom port
+bun run src/cli.ts ./WORKFLOW.md --no-tui             # headless mode
+bun run src/cli.ts ./WORKFLOW.md --no-tui --verbose   # headless + agent stream
 ```
 
 ## Verification

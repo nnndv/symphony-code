@@ -7,6 +7,7 @@ import { TrackerLive } from "./github/tracker.js"
 import { parseWorkflowFile } from "./workflow.js"
 import { startOrchestrator } from "./orchestrator.js"
 import { startTui } from "./dashboard/tui.js"
+import { startTerminalLog } from "./dashboard/terminal-log.js"
 import { startServer } from "./dashboard/server.js"
 import { ui } from "./ui.js"
 import { clackLoggerLayer } from "./log.js"
@@ -16,6 +17,7 @@ const { values, positionals } = parseArgs({
   options: {
     port: { type: "string", short: "p" },
     "no-tui": { type: "boolean" },
+    verbose: { type: "boolean", short: "v" },
     help: { type: "boolean", short: "h" },
   },
   allowPositionals: true,
@@ -29,6 +31,7 @@ Usage: symphony-code <workflow.md> [options]
 Options:
   --port, -p PORT   HTTP port for web dashboard (default: 4000)
   --no-tui          Disable the terminal dashboard
+  --verbose, -v     Show Claude agent output stream
   --help, -h        Show this help message
 
 Environment:
@@ -44,6 +47,7 @@ Example:
 const workflowPath = positionals[0]!
 const port = values["port"] ? Number(values["port"]) : undefined
 const noTui = values["no-tui"] === true
+const verbose = values["verbose"] === true
 
 ui.intro()
 
@@ -65,6 +69,7 @@ const program = Effect.gen(function* () {
   const config = configFromWorkflow(workflow.config, {
     ...(port !== undefined ? { httpPort: port } : {}),
     tui: !noTui,
+    verbose,
   })
 
   if (!config.trackerRepo) {
@@ -85,7 +90,7 @@ const program = Effect.gen(function* () {
     )
 
     // Start HTTP dashboard
-    yield* Effect.fork(startServer(config.httpPort, orchestrator.state, orchestrator.refresh))
+    yield* Effect.fork(startServer(config.httpPort, config.trackerRepo, orchestrator.state, orchestrator.refresh))
 
     spin.stop("Ready")
 
@@ -93,11 +98,9 @@ const program = Effect.gen(function* () {
     if (config.tui) {
       yield* Effect.fork(startTui(orchestrator.state))
     } else {
-      ui.note(
-        `http://localhost:${config.httpPort}`,
-        '🚀 Dashboard ready at:'
-      )
+      ui.info(`🚀 Dashboard ready at: http://localhost:${config.httpPort}`)
       ui.info("Press Ctrl+C to stop")
+      yield* Effect.fork(startTerminalLog())
     }
 
     // Block forever — orchestrator runs in background fiber

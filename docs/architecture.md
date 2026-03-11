@@ -16,10 +16,10 @@ Symphony is a poll-dispatch-retry loop. Every `poll_interval_ms`, the orchestrat
                            └─────┬─────┘              └────────────┘
                            ┌─────┴─────────────┐
                            │                   │
-                      ┌────┴────┐        ┌─────┴─────┐
-                      │  TUI    │        │HTTP + SSE │
-                      │Dashboard│        │ Dashboard │
-                      └─────────┘        └───────────┘
+                      ┌────┴────┐   ┌────┴─────┐   ┌─────┴─────┐
+                      │  TUI    │   │ Terminal │   │HTTP + SSE │
+                      │Dashboard│   │   Log    │   │ Dashboard │
+                      └─────────┘   └──────────┘   └───────────┘
 ```
 
 ## Dependency Layers
@@ -30,9 +30,9 @@ Dependencies flow strictly from top to bottom. Never import upward.
 Layer 0: Types        github/issue.ts, event-bus.ts (type definitions only)
 Layer 1: Config       config.ts
 Layer 2: Services     github/client.ts, github/tracker.ts, workspace.ts,
-                      prompt-builder.ts, claude-session.ts, log.ts
+                      prompt-builder.ts, claude-session.ts, log.ts, ui.ts
 Layer 3: Orchestrator orchestrator.ts, agent-runner.ts
-Layer 4: UI           dashboard/tui.ts, dashboard/server.ts
+Layer 4: UI           dashboard/tui.ts, dashboard/terminal-log.ts, dashboard/server.ts
 Layer 5: Entry        cli.ts
 ```
 
@@ -60,7 +60,7 @@ These are merged into a single `appLayer` and provided to the orchestrator.
 | Agent execution | `Effect.fork` → `Fiber` | One fiber per dispatched issue |
 | Stall detection | `Fiber.interrupt` | Kills fibers exceeding `stallTimeoutMs` |
 | State management | `Ref<OrchestratorState>` | Atomic, lock-free state updates |
-| Event broadcast | `PubSub<SymphonyEvent>` | Unbounded; TUI and SSE subscribe |
+| Event broadcast | `PubSub<SymphonyEvent>` | Unbounded; TUI, terminal-log, and SSE subscribe |
 | Workspace lifecycle | `Effect.acquireRelease` | Auto-cleanup on completion or failure |
 | Subprocess cancel | `AbortSignal` on `Bun.spawn` | Fiber interrupt → process kill |
 
@@ -76,29 +76,38 @@ These are merged into a single `appLayer` and provided to the orchestrator.
 ```
 1. Orchestrator.tick()
    └─ tracker.listIssues()              # gh issue list → JSON → Issue[]
+   └─ on error: PubSub.publish(PollFailed)
    └─ filterCandidates(issues, state)   # exclude running/completed/claimed/blocked
    └─ sort by priority (p1 > p2 > p3)
    └─ take up to (maxConcurrent - running) slots
+   └─ PubSub.publish(PollCompleted)     # issuesFound, candidateCount, dispatchedCount
 
 2. For each dispatched issue:
    └─ Ref.update: add to running + claimed
    └─ PubSub.publish(IssueDispatched)
    └─ Effect.fork(agentRunner)
 
+2b. Stall detection:
+   └─ Fiber.interrupt(stalled fiber)
+   └─ PubSub.publish(IssueStalled)
+
 3. AgentRunner pipeline:
    └─ withWorkspace(issue)              # mkdir, symlink guard, after_create hook
    └─ beforeRun hook
    └─ render(template, issue)           # Liquid template → prompt string
    └─ runTurn(config, params)           # spawn claude CLI, stream JSON, collect result
-   └─ tracker.comment(id, result)       # post summary comment
    └─ afterRun hook
+   └─ tracker.hasLinkedPR(id)           # verify a PR was created
+   └─ tracker.getIssue(id)             # re-check issue status from GitHub
+   └─ tracker.comment(id, result)       # post summary comment (includes PR warning if missing)
+   └─ if no PR and issue still open → fail (triggers retry)
    └─ (acquireRelease cleans up workspace)
 
-4. On completion:
+4. On completion (PR verified):
    └─ Ref.update: remove from running, add to completed, accumulate costs
    └─ PubSub.publish(IssueCompleted)
 
-5. On failure:
+5. On failure (including no PR created):
    └─ Ref.update: remove from running, add to retryQueue with backoff
    └─ PubSub.publish(IssueFailed)
    └─ Best-effort error comment on issue

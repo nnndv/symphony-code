@@ -92,6 +92,8 @@ bun run src/cli.ts ./WORKFLOW.md
 
 # 3. Verify
 # - TUI shows the issue dispatched
-# - Agent runs and posts a comment
+# - Agent runs, creates a branch and opens a PR
+# - Agent posts a summary comment on the issue (status shows "Completed" if PR found)
 # - Issue appears in "completed" after agent finishes
+# - If no PR was created, issue goes to retry queue instead of completed
 ```

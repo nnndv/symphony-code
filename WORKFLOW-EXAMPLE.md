@@ -35,4 +35,4 @@ You are working on issue #{{identifier}}: {{title}}
 {{description}}
 
 ## Instructions
-Implement the requested changes. Create a branch, make commits, and open a PR.
+Implement the requested changes. Create a branch, make commits, and open a PR that references this issue.

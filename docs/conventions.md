@@ -62,12 +62,14 @@ src/
 ├── workspace.ts         # Workspace lifecycle (Layer 2)
 ├── prompt-builder.ts    # Liquid template renderer (Layer 2)
 ├── log.ts               # JSON logger layers (Layer 2)
+├── ui.ts                # Clack prompts wrapper (Layer 2)
 ├── github/
 │   ├── issue.ts         # Issue type + parsing (Layer 0)
 │   ├── client.ts        # gh CLI wrapper (Layer 2)
 │   └── tracker.ts       # Tracker service (Layer 2)
 └── dashboard/
     ├── tui.ts           # ANSI terminal dashboard (Layer 4)
+    ├── terminal-log.ts  # Event log for --no-tui mode (Layer 4)
     └── server.ts        # HTTP + SSE server (Layer 4)
 ```
 
