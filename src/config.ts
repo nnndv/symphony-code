@@ -54,14 +54,18 @@ export interface SymphonyConfig {
   readonly maxTurns: number
   readonly maxRetryBackoffMs: number
   readonly stallTimeoutMs: number
+  readonly hookTimeoutMs: number
   readonly model: string
   readonly permissionMode: string
   readonly allowedTools: readonly string[]
   readonly workspaceRoot: string
   readonly trackerRepo: string
   readonly trackerLabels: readonly string[]
+  readonly trackerActiveStates: readonly string[]
+  readonly trackerTerminalStates: readonly string[]
   readonly httpPort: number
   readonly tui: boolean
+  readonly verbose: boolean
   readonly logFile: string | null
 }
 
@@ -71,14 +75,18 @@ export const defaultConfig: SymphonyConfig = {
   maxTurns: 20,
   maxRetryBackoffMs: 300_000,
   stallTimeoutMs: 300_000,
+  hookTimeoutMs: 60_000,
   model: "claude-sonnet-4-5-20250929",
   permissionMode: "acceptEdits",
   allowedTools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
   workspaceRoot: `${process.env["HOME"] ?? "/tmp"}/.symphony/workspaces`,
   trackerRepo: "",
   trackerLabels: ["symphony"],
+  trackerActiveStates: ["open"],
+  trackerTerminalStates: ["closed"],
   httpPort: 4000,
   tui: true,
+  verbose: false,
   logFile: null,
 }
 
@@ -116,9 +124,12 @@ export function configFromWorkflow(
     [["claude", "permission_mode"], "permissionMode"],
     [["claude", "allowed_tools"], "allowedTools"],
     [["claude", "max_turns"], "maxTurns"],
+    [["hooks", "timeout_ms"], "hookTimeoutMs"],
     [["workspace", "root"], "workspaceRoot"],
     [["tracker", "repo"], "trackerRepo"],
     [["tracker", "labels"], "trackerLabels"],
+    [["tracker", "active_states"], "trackerActiveStates"],
+    [["tracker", "terminal_states"], "trackerTerminalStates"],
   ]
 
   const resolved: Record<string, unknown> = { ...defaultConfig }
