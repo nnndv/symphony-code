@@ -16,7 +16,7 @@ const { values, positionals } = parseArgs({
   args: Bun.argv.slice(2),
   options: {
     port: { type: "string", short: "p" },
-    "no-tui": { type: "boolean" },
+    "no-tui": { type: "boolean", short: "n" },
     verbose: { type: "boolean", short: "v" },
     help: { type: "boolean", short: "h" },
   },

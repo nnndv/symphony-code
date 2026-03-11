@@ -1,5 +1,5 @@
 import { Effect, PubSub, Queue, Ref } from "effect"
-import { EventBus, type SymphonyEvent } from "../event-bus.js"
+import { EventBus } from "../event-bus.js"
 import { type OrchestratorState, getStateSnapshot } from "../orchestrator.js"
 
 const DASHBOARD_HTML = `<!DOCTYPE html>
@@ -89,8 +89,9 @@ export function startServer(
   return Effect.gen(function* () {
     const pubsub = yield* EventBus
 
-    const server = Bun.serve({
+    Bun.serve({
       port,
+      idleTimeout: 0,
       fetch: async (req) => {
         const url = new URL(req.url)
 
