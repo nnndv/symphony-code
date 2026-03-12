@@ -5,7 +5,7 @@ Claude-powered issue orchestrator. Polls GitHub Issues, creates isolated workspa
 ## Architecture
 
 - **Bun + Effect** — Runtime, orchestrator, concurrency (Fiber, PubSub, Ref, Schedule)
-- **Claude CLI** — Agent execution via `claude --print --output-format stream-json`
+- **Claude CLI** — Agent execution via `claude --print --verbose --output-format stream-json`
 - **GitHub CLI** — Issue tracking via `gh`
 - **SSE + Static HTML** — Web dashboard (no framework, no build step)
 
@@ -48,6 +48,7 @@ symphony-code <workflow.md> [options]
 
 --port, -p PORT   HTTP port for web dashboard (default: 4000)
 --no-tui          Disable the terminal dashboard (events logged inline instead)
+--dry-run         Simulate agent work without calling Claude (for testing orchestration)
 --verbose, -v     Show Claude agent output stream (requires --no-tui)
 --help, -h        Show help message
 ```
@@ -60,10 +61,12 @@ POST /api/v1/refresh  — Trigger immediate poll
 GET  /api/v1/events   — SSE event stream
 ```
 
-## Verification
+## Testing
 
 ```bash
+bun test              # unit + integration tests (dry-run, no API calls)
 bun run typecheck     # tsc --noEmit
+E2E=1 bun test test/e2e.test.ts  # real GitHub + Claude (creates issues, costs money)
 ```
 
 ## WORKFLOW.md Format

@@ -53,7 +53,7 @@ Hook commands support `{{identifier}}`, `{{title}}`, `{{number}}` interpolation.
 | Key | Type | Default | Description |
 |---|---|---|---|
 | `agent.max_concurrent_agents` | number | `5` | Max agents running simultaneously |
-| `agent.max_turns` | number | `20` | Max Claude conversation turns per issue |
+| `agent.max_turns` | number | `20` | Max times Symphony re-invokes the Claude CLI per issue (each invocation runs unlimited internal turns) |
 | `agent.max_retry_backoff_ms` | number | `300000` | Cap on exponential retry backoff |
 | `agent.stall_timeout_ms` | number | `300000` | Kill agents after this inactivity period |
 
@@ -64,7 +64,7 @@ Hook commands support `{{identifier}}`, `{{title}}`, `{{number}}` interpolation.
 | `claude.model` | string | `"claude-sonnet-4-5-20250929"` | Claude model ID |
 | `claude.permission_mode` | string | `"acceptEdits"` | Claude CLI permission mode |
 | `claude.allowed_tools` | string[] | `["Read","Write","Edit","Bash","Glob","Grep"]` | Tools the agent may use |
-| `claude.max_turns` | number | — | Overrides `agent.max_turns` if set |
+| `claude.max_turns` | number | — | Overrides `agent.max_turns` for the outer Symphony loop if set |
 
 ### Environment Variable Resolution
 
@@ -113,7 +113,6 @@ claude:
   permission_mode: acceptEdits
 
 hooks:
-  after_create: "git clone https://github.com/{{identifier}} ."
   before_run: "npm install"
 ---
 

@@ -40,10 +40,15 @@ export function ensureWorkspace(
 
       const createdNow = !existsSync(dir) || !statSync(dir).isDirectory()
 
-      yield* Effect.try({
-        try: () => mkdirSync(dir, { recursive: true }),
-        catch: (err) => new WorkspaceError({ reason: `mkdir failed: ${err}` }),
-      })
+      if (createdNow && config.trackerRepo && !config.dryRun) {
+        // Clone the tracker repo into the workspace directory
+        yield* cloneRepo(config.trackerRepo, dir, hookTimeoutMs)
+      } else if (createdNow) {
+        yield* Effect.try({
+          try: () => mkdirSync(dir, { recursive: true }),
+          catch: (err) => new WorkspaceError({ reason: `mkdir failed: ${err}` }),
+        })
+      }
 
       yield* validatePath(dir, config.workspaceRoot)
 
@@ -121,6 +126,35 @@ function validatePath(dir: string, root: string): Effect.Effect<void, WorkspaceE
     },
     catch: (err) => new WorkspaceError({ reason: String(err) }),
   })
+}
+
+/** Clone a GitHub repo into the target directory via `gh repo clone`. */
+function cloneRepo(
+  repo: string,
+  dir: string,
+  timeoutMs: number,
+): Effect.Effect<void, WorkspaceError> {
+  return Effect.tryPromise({
+    try: async () => {
+      const proc = Bun.spawn(["gh", "repo", "clone", repo, dir], {
+        stdout: "pipe",
+        stderr: "pipe",
+      })
+      const stdout = await new Response(proc.stdout).text()
+      const stderr = await new Response(proc.stderr).text()
+      const exitCode = await proc.exited
+      if (exitCode !== 0) {
+        throw new Error(`git clone failed (exit ${exitCode}): ${stderr || stdout}`)
+      }
+    },
+    catch: (err) => new WorkspaceError({ reason: String(err) }),
+  }).pipe(
+    Effect.timeout(`${timeoutMs} millis`),
+    Effect.catchTag("TimeoutException", () =>
+      Effect.fail(new WorkspaceError({ reason: `Clone of ${repo} timed out after ${timeoutMs}ms` })),
+    ),
+    Effect.asVoid,
+  )
 }
 
 function renderHookCmd(template: string, issue: Issue | null): string {

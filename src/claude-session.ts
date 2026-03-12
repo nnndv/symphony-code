@@ -43,6 +43,7 @@ export function runTurn(
     Effect.async<TurnResult, Error>((resume, signal) => {
       const args: string[] = [
         "--print",
+        "--verbose",
         "--output-format", "stream-json",
         "--model", config.model,
         "--permission-mode", config.permissionMode,
@@ -52,19 +53,19 @@ export function runTurn(
         args.push("--max-turns", String(config.maxTurns))
       }
       if (config.allowedTools.length > 0) {
-        args.push("--allowedTools", ...config.allowedTools)
+        args.push("--allowedTools", config.allowedTools.join(","))
       }
       if (config.systemPrompt) {
         args.push("--system-prompt", config.systemPrompt)
       }
 
-      args.push(params.prompt)
-
+      const { CLAUDECODE: _, ...cleanEnv } = process.env
       const proc = Bun.spawn(["claude", ...args], {
         cwd: config.workspaceDir,
+        stdin: new TextEncoder().encode(params.prompt),
         stdout: "pipe",
         stderr: "pipe",
-        env: { ...process.env },
+        env: cleanEnv,
       })
 
       signal.addEventListener("abort", () => {
@@ -128,7 +129,13 @@ export function runTurn(
             }
           }
 
-          await proc.exited
+          const exitCode = await proc.exited
+          if (exitCode !== 0 && !result) {
+            const stderrStream = proc.stderr as ReadableStream<Uint8Array>
+            const stderrText = await new Response(stderrStream).text()
+            resume(Effect.fail(new Error(`Claude exited with code ${exitCode}: ${stderrText}`)))
+            return
+          }
           resume(Effect.succeed({ result, costUsd, numTurns }))
         } catch (err) {
           if (!signal.aborted) {

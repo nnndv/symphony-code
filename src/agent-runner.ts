@@ -60,44 +60,53 @@ export function runAgent(
     let totalTurns = 0
     let lastResult = ""
 
-    while (turnNumber <= maxTurns) {
-      // First turn: full rendered prompt. Continuation turns: guidance only.
-      const prompt = turnNumber === 1
-        ? yield* render(template, issue, attempt)
-        : `Continue working on issue #${id}: ${issue.title}. This is turn ${turnNumber}/${maxTurns}. Check the current state and continue where you left off.`
+    if (config.dryRun) {
+      // Simulate agent work without calling Claude
+      const delayMs = 2000 + Math.random() * 3000
+      yield* Effect.sleep(`${Math.round(delayMs)} millis`)
+      totalCostUsd = 0
+      totalTurns = 1
+      lastResult = `[dry-run] Simulated agent work for issue #${id}: ${issue.title}`
+    } else {
+      while (turnNumber <= maxTurns) {
+        // First turn: full rendered prompt. Continuation turns: guidance only.
+        const prompt = turnNumber === 1
+          ? yield* render(template, issue, attempt)
+          : `Continue working on issue #${id}: ${issue.title}. This is turn ${turnNumber}/${maxTurns}. Check the current state and continue where you left off.`
 
-      const sessionId = `symphony-${id}-${Date.now()}`
-      const turnResult: TurnResult = yield* runTurn(
-        {
-          sessionId,
-          model: config.model,
-          permissionMode: config.permissionMode,
-          allowedTools: config.allowedTools,
-          maxTurns: config.maxTurns,
-          workspaceDir: ws.path,
-        },
-        { sessionId, prompt },
-      )
+        const sessionId = `symphony-${id}-${Date.now()}`
+        const turnResult: TurnResult = yield* runTurn(
+          {
+            sessionId,
+            model: config.model,
+            permissionMode: config.permissionMode,
+            allowedTools: config.allowedTools,
+            maxTurns: 0, // let Claude CLI decide when done; outer loop controls symphony turns
+            workspaceDir: ws.path,
+          },
+          { sessionId, prompt },
+        )
 
-      totalCostUsd += turnResult.costUsd
-      totalTurns += turnResult.numTurns
-      lastResult = turnResult.result
+        totalCostUsd += turnResult.costUsd
+        totalTurns += turnResult.numTurns
+        lastResult = turnResult.result
 
-      // Re-check issue state from tracker after each turn
-      const currentIssue = yield* tracker.getIssue(id).pipe(
-        Effect.catchAll(() => Effect.succeed(null)),
-      )
+        // Re-check issue state from tracker after each turn
+        const currentIssue = yield* tracker.getIssue(id).pipe(
+          Effect.catchAll(() => Effect.succeed(null)),
+        )
 
-      // If issue is no longer in an active state, stop
-      if (!currentIssue || !isActiveState(currentIssue.state, config.trackerActiveStates)) {
-        break
+        // If issue is no longer in an active state, stop
+        if (!currentIssue || !isActiveState(currentIssue.state, config.trackerActiveStates)) {
+          break
+        }
+
+        if (turnNumber >= maxTurns) {
+          break
+        }
+
+        turnNumber++
       }
-
-      if (turnNumber >= maxTurns) {
-        break
-      }
-
-      turnNumber++
     }
 
     // Best-effort after_run hook

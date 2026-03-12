@@ -18,6 +18,7 @@ const { values, positionals } = parseArgs({
     port: { type: "string", short: "p" },
     "no-tui": { type: "boolean", short: "n" },
     verbose: { type: "boolean", short: "v" },
+    "dry-run": { type: "boolean" },
     help: { type: "boolean", short: "h" },
   },
   allowPositionals: true,
@@ -31,6 +32,7 @@ Usage: symphony-code <workflow.md> [options]
 Options:
   --port, -p PORT   HTTP port for web dashboard (default: 4000)
   --no-tui          Disable the terminal dashboard
+  --dry-run         Simulate agent work without calling Claude
   --verbose, -v     Show Claude agent output stream
   --help, -h        Show this help message
 
@@ -47,6 +49,7 @@ Example:
 const workflowPath = positionals[0]!
 const port = values["port"] ? Number(values["port"]) : undefined
 const noTui = values["no-tui"] === true
+const dryRun = values["dry-run"] === true
 const verbose = values["verbose"] === true
 
 ui.intro()
@@ -69,6 +72,7 @@ const program = Effect.gen(function* () {
   const config = configFromWorkflow(workflow.config, {
     ...(port !== undefined ? { httpPort: port } : {}),
     tui: !noTui,
+    dryRun,
     verbose,
   })
 

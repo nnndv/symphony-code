@@ -47,7 +47,7 @@ All services are provided via Effect `Layer` composition in `cli.ts`:
 ```
 ConfigLive(config)
   └─► TrackerLive (needs Config)
-EventBusLive (standalone)
+EventBusLive (standalone — or shared via Layer.succeed(EventBus, pubsub))
 ```
 
 These are merged into a single `appLayer` and provided to the orchestrator.
@@ -92,10 +92,10 @@ These are merged into a single `appLayer` and provided to the orchestrator.
    └─ PubSub.publish(IssueStalled)
 
 3. AgentRunner pipeline:
-   └─ withWorkspace(issue)              # mkdir, symlink guard, after_create hook
+   └─ withWorkspace(issue)              # auto-clone tracker repo (or mkdir in dry-run), symlink guard, after_create hook
    └─ beforeRun hook
    └─ render(template, issue)           # Liquid template → prompt string
-   └─ runTurn(config, params)           # spawn claude CLI, stream JSON, collect result
+   └─ runTurn(config, params)           # spawn claude --print --verbose, stream JSON via stdin prompt, collect result
    └─ afterRun hook
    └─ tracker.hasLinkedPR(id)           # verify a PR was created
    └─ tracker.getIssue(id)             # re-check issue status from GitHub

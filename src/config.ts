@@ -67,6 +67,7 @@ export interface SymphonyConfig {
   readonly tui: boolean
   readonly verbose: boolean
   readonly logFile: string | null
+  readonly dryRun: boolean
 }
 
 export const defaultConfig: SymphonyConfig = {
@@ -88,6 +89,7 @@ export const defaultConfig: SymphonyConfig = {
   tui: true,
   verbose: false,
   logFile: null,
+  dryRun: false,
 }
 
 export class Config extends Context.Tag("Config")<Config, SymphonyConfig>() {}

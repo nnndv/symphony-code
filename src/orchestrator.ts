@@ -62,7 +62,7 @@ export function startOrchestrator(
 
     const agentLayer = Layer.mergeAll(
       ConfigLive(config),
-      EventBusLive,
+      Layer.succeed(EventBus, pubsub),
       TrackerLive.pipe(Layer.provide(ConfigLive(config))),
     )
 

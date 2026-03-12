@@ -37,3 +37,4 @@ elixir/
 node-worker/
 WORKFLOW.md
 cli-test
+symphony-code-test/
