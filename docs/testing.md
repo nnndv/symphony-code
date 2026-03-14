@@ -71,7 +71,7 @@ Uses an in-memory tracker and `dryRun: true` to test the full orchestration loop
 
 Requires `gh` CLI (authenticated), `claude` CLI, and a real GitHub repo. Gated by `E2E=1` environment variable. Creates a unique label per test run for isolation. Verifies the full flow: issue creation → agent dispatch → Claude execution → git push → PR creation → comment posted → issue completed.
 
-- Config: `maxTurns: 3`, `permissionMode: "bypassPermissions"`, `model: "claude-sonnet-4-5-20250929"`
+- **Config source:** Reads from `WORKFLOW-E2E-TEST.md` at repo root via `parseWorkflowFile` + `configFromWorkflow`, with test-specific overrides (unique label, temp workspace, no TUI)
 - Timeouts: 300s event wait, 360s test timeout
 - Cleanup: closes issue, deletes label, removes workspace
 
@@ -96,9 +96,9 @@ bun run src/cli.ts ./WORKFLOW.md --no-tui --dry-run
 bun run src/cli.ts ./WORKFLOW.md
 
 # 4. Verify
-# - TUI shows the issue dispatched
+# - TUI shows the issue dispatched (uses alternate screen buffer, no history pollution)
 # - Agent runs, creates a branch, pushes, and opens a PR
 # - Agent posts a summary comment on the issue (status shows "Completed" if PR found)
-# - Issue appears in "completed" after agent finishes
-# - If no PR was created, issue goes to retry queue instead of completed
+# - If PR was created: issue moves to "completed", not re-dispatched
+# - If no PR was created: issue gets a continuation retry (re-dispatched after 1s)
 ```

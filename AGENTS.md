@@ -58,10 +58,13 @@ bun run src/cli.ts ./WORKFLOW.md                      # default port 4000
 bun run src/cli.ts ./WORKFLOW.md --port 8080          # custom port
 bun run src/cli.ts ./WORKFLOW.md --no-tui             # headless mode
 bun run src/cli.ts ./WORKFLOW.md --no-tui --verbose   # headless + agent stream
+bun run src/cli.ts ./WORKFLOW.md --no-tui --dry-run   # simulate without Claude
 ```
 
 ## Verification
 
 ```bash
-bun run typecheck     # tsc --noEmit
+bun run typecheck                      # tsc --noEmit
+bun test                               # unit + integration (dry-run)
+E2E=1 bun test test/e2e.test.ts        # real GitHub + Claude e2e
 ```

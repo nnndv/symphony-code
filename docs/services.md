@@ -26,18 +26,20 @@
 ### Orchestrator (`src/orchestrator.ts`)
 - **Purpose:** Poll-dispatch-retry loop. The central coordinator.
 - **State:** `Ref<OrchestratorState>` — running, completed, claimed, retryQueue, tokenTotals
+- **Dispatch gating:** `filterCandidates` skips issues that are running, claimed, completed, non-active, or blocked. The `completed` set prevents re-dispatch of issues that already have a linked PR.
+- **Completion logic:** When an agent finishes with `hasLinkedPR: true`, the issue is added to `completed` (no retry). When `hasLinkedPR: false`, a continuation retry is scheduled instead.
 - **Exports:** `startOrchestrator(workflow, hooks)` → `OrchestratorHandle`
 - **Requires:** Config, EventBus, TrackerService
-- **Internal functions:** `pollAndDispatch`, `checkStalls`, `processRetries`, `filterCandidates`
+- **Internal functions:** `pollAndDispatch`, `reconcileRunningIssues`, `processRetries`, `filterCandidates`
 - **Events published:** `PollCompleted` / `PollFailed` after each poll, `IssueDispatched` per dispatch, `IssueStalled` on stall detection
 
 ### Agent Runner (`src/agent-runner.ts`)
 - **Purpose:** Full agent pipeline for a single issue.
 - **Pipeline:** workspace (auto-clone) → hooks → prompt → claude → hooks → PR verification → comment → cleanup
 - **Dry-run mode:** When `config.dryRun` is true, simulates work with a 2–5s delay instead of calling Claude.
-- **PR verification:** After the agent finishes, checks `tracker.hasLinkedPR(id)` and re-fetches issue status. If no PR exists and the issue is still open, fails with an error (triggering orchestrator retry).
+- **PR verification:** After the agent finishes, checks `tracker.hasLinkedPR(id)`. The `hasLinkedPR` boolean is returned in `AgentResult` so the orchestrator can decide whether to mark the issue completed or schedule a continuation retry.
 - **maxTurns:** `config.maxTurns` controls how many times the outer loop re-invokes Claude. Each Claude CLI invocation runs with unlimited turns (`maxTurns: 0`).
-- **Exports:** `runAgent(issue, workflow, hooks)` → `AgentResult`
+- **Exports:** `runAgent(issue, workflow, hooks)` → `AgentResult { result, costUsd, numTurns, hasLinkedPR, exitReason }`
 - **Errors:** `WorkspaceError | TemplateError | GhCliError | Error`
 
 ### Claude Session (`src/claude-session.ts`)
@@ -92,6 +94,7 @@ Thin wrapper over `@clack/prompts`. Exports a single `ui` object with `intro`, `
 
 ### TUI Dashboard (`src/dashboard/tui.ts`)
 - **Purpose:** ANSI terminal dashboard. Subscribes to EventBus, renders every 1s.
+- **Alternate screen buffer:** Enters `\x1b[?1049h` on start, restores `\x1b[?1049l` on exit (via Effect finalizer) to avoid polluting terminal scrollback history.
 - **Shows:** Running agents (number, title, duration), retry queue, recent completions, cost/turn totals.
 
 ### Terminal Log (`src/dashboard/terminal-log.ts`)

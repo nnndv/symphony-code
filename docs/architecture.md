@@ -77,7 +77,7 @@ These are merged into a single `appLayer` and provided to the orchestrator.
 1. Orchestrator.tick()
    └─ tracker.listIssues()              # gh issue list → JSON → Issue[]
    └─ on error: PubSub.publish(PollFailed)
-   └─ filterCandidates(issues, state)   # exclude running/completed/claimed/blocked
+   └─ filterCandidates(issues, state)   # exclude running/claimed/completed/blocked
    └─ sort by priority (p1 > p2 > p3)
    └─ take up to (maxConcurrent - running) slots
    └─ PubSub.publish(PollCompleted)     # issuesFound, candidateCount, dispatchedCount
@@ -97,18 +97,17 @@ These are merged into a single `appLayer` and provided to the orchestrator.
    └─ render(template, issue)           # Liquid template → prompt string
    └─ runTurn(config, params)           # spawn claude --print --verbose, stream JSON via stdin prompt, collect result
    └─ afterRun hook
-   └─ tracker.hasLinkedPR(id)           # verify a PR was created
-   └─ tracker.getIssue(id)             # re-check issue status from GitHub
+   └─ tracker.hasLinkedPR(id)           # verify a PR was created → hasLinkedPR in AgentResult
    └─ tracker.comment(id, result)       # post summary comment (includes PR warning if missing)
-   └─ if no PR and issue still open → fail (triggers retry)
-   └─ (acquireRelease cleans up workspace)
 
-4. On completion (PR verified):
-   └─ Ref.update: remove from running, add to completed, accumulate costs
+4. On agent completion:
    └─ PubSub.publish(IssueCompleted)
+   └─ if hasLinkedPR: add to completed set, no retry (issue is done)
+   └─ if !hasLinkedPR: schedule continuation retry (1s delay, re-dispatches agent)
+   └─ Ref.update: remove from running, accumulate costs
 
-5. On failure (including no PR created):
-   └─ Ref.update: remove from running, add to retryQueue with backoff
+5. On agent failure:
+   └─ Ref.update: remove from running, add to retryQueue with exponential backoff
    └─ PubSub.publish(IssueFailed)
    └─ Best-effort error comment on issue
 ```
