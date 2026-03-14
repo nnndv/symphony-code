@@ -1,6 +1,8 @@
 /**
  * End-to-end test: real GitHub CLI + real Claude CLI.
  *
+ * Config is read from WORKFLOW-E2E-TEST.md at the repo root.
+ *
  * Prerequisites:
  *   - `gh` authenticated with access to the test repo
  *   - Claude auth configured (ANTHROPIC_API_KEY or `claude auth login`)
@@ -12,20 +14,22 @@
  */
 import { test, expect, beforeAll, afterAll, describe } from "bun:test"
 import { Effect, PubSub, Queue, Layer, Fiber, Duration } from "effect"
-import { ConfigLive, type SymphonyConfig, defaultConfig } from "../src/config.js"
+import { ConfigLive, configFromWorkflow, type SymphonyConfig } from "../src/config.js"
 import { EventBus, EventBusLive } from "../src/event-bus.js"
 import type { SymphonyEvent } from "../src/event-bus.js"
 import { TrackerLive } from "../src/github/tracker.js"
 import { startOrchestrator } from "../src/orchestrator.js"
-import { mkdirSync, rmSync } from "node:fs"
+import { parseWorkflowFile, type Workflow } from "../src/workflow.js"
+import { rmSync } from "node:fs"
 import { join } from "node:path"
-import { tmpdir } from "node:os"
 
-const TEST_REPO = "nnndv/symphony-code-test"
+const WORKFLOW_PATH = join(import.meta.dir, "..", "WORKFLOW-E2E-TEST.md")
 const SKIP = !process.env["E2E"]
 
 // --- Helpers ---
 
+let workflow: Workflow
+let config: SymphonyConfig
 let createdIssueNumber: number | null = null
 let workspaceRoot: string | null = null
 const E2E_LABEL = `e2e-${Date.now()}`
@@ -81,10 +85,25 @@ describe("e2e: real GitHub + real Claude", () => {
   beforeAll(async () => {
     if (SKIP) return
 
+    // Parse workflow file to get config
+    workflow = await Effect.runPromise(parseWorkflowFile(WORKFLOW_PATH))
+    workspaceRoot = join("/tmp", `symphony-e2e-${Date.now()}`)
+    config = configFromWorkflow(workflow.config, {
+      trackerLabels: [E2E_LABEL],
+      workspaceRoot,
+      httpPort: 0,
+      tui: false,
+      verbose: false,
+      logFile: null,
+      dryRun: false,
+    })
+
+    if (!config.trackerRepo) throw new Error("Missing tracker.repo in WORKFLOW-E2E-TEST.md")
+
     // Create a unique label for this test run so we only pick up our issue
     await gh([
       "label", "create", E2E_LABEL,
-      "--repo", TEST_REPO,
+      "--repo", config.trackerRepo,
       "--description", "Temporary e2e test label",
       "--force",
     ])
@@ -92,7 +111,7 @@ describe("e2e: real GitHub + real Claude", () => {
     // Create a test issue with a trivial task
     const url = await gh([
       "issue", "create",
-      "--repo", TEST_REPO,
+      "--repo", config.trackerRepo,
       "--title", `[e2e-test] Create a hello.txt file (${Date.now()})`,
       "--body", "Create a file called `hello.txt` in the repo root with the content `Hello from Symphony e2e test`. That's it — nothing else.",
       "--label", E2E_LABEL,
@@ -108,10 +127,10 @@ describe("e2e: real GitHub + real Claude", () => {
     if (SKIP) return
 
     // Close and clean up the test issue
-    if (createdIssueNumber) {
+    if (createdIssueNumber && config) {
       await gh([
         "issue", "close",
-        "--repo", TEST_REPO,
+        "--repo", config.trackerRepo,
         String(createdIssueNumber),
         "--comment", "Closed by e2e test cleanup.",
       ]).catch(() => {})
@@ -119,11 +138,13 @@ describe("e2e: real GitHub + real Claude", () => {
     }
 
     // Delete the temporary label
-    await gh([
-      "label", "delete", E2E_LABEL,
-      "--repo", TEST_REPO,
-      "--yes",
-    ]).catch(() => {})
+    if (config) {
+      await gh([
+        "label", "delete", E2E_LABEL,
+        "--repo", config.trackerRepo,
+        "--yes",
+      ]).catch(() => {})
+    }
 
     // Clean up workspace
     if (workspaceRoot) {
@@ -134,30 +155,6 @@ describe("e2e: real GitHub + real Claude", () => {
   test.skipIf(SKIP)("full orchestration lifecycle", async () => {
     expect(createdIssueNumber).not.toBeNull()
 
-    workspaceRoot = join(tmpdir(), `symphony-e2e-${Date.now()}`)
-    mkdirSync(workspaceRoot, { recursive: true })
-
-    const config: SymphonyConfig = {
-      ...defaultConfig,
-      pollIntervalMs: 60_000, // manual tick
-      maxConcurrent: 1,
-      maxTurns: 3,
-      stallTimeoutMs: 0,
-      trackerRepo: TEST_REPO,
-      trackerLabels: [E2E_LABEL],
-      trackerActiveStates: ["open"],
-      trackerTerminalStates: ["closed"],
-      workspaceRoot,
-      model: "claude-sonnet-4-5-20250929",
-      permissionMode: "bypassPermissions",
-      allowedTools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
-      dryRun: false,
-      httpPort: 0, // unused in test
-      tui: false,
-      verbose: false,
-      logFile: null,
-    }
-
     const configLayer = ConfigLive(config)
     const trackerLayer = TrackerLive.pipe(Layer.provide(configLayer))
     const appLayer = Layer.mergeAll(configLayer, EventBusLive, trackerLayer)
@@ -166,7 +163,7 @@ describe("e2e: real GitHub + real Claude", () => {
       const pubsub = yield* EventBus
       const sub = yield* PubSub.subscribe(pubsub)
 
-      const handle = yield* startOrchestrator(null, {})
+      const handle = yield* startOrchestrator(workflow, {})
 
       // Wait for the test issue to complete (agent finishes)
       const events = yield* waitForEvents(sub, (evts) =>
@@ -222,7 +219,7 @@ describe("e2e: real GitHub + real Claude", () => {
     // Check that a comment was posted on the issue
     const issueData = await ghJson<{ comments: Array<{ body: string }> }>([
       "issue", "view",
-      "--repo", TEST_REPO,
+      "--repo", config.trackerRepo,
       String(createdIssueNumber),
       "--json", "comments",
     ])
