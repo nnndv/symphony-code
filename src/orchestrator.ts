@@ -29,7 +29,7 @@ interface RetryEntry {
 
 export interface OrchestratorState {
   readonly running: Map<string, RunningTask>
-  readonly completed: Set<string>        // bookkeeping only — does NOT gate dispatch
+  readonly completed: Set<string>
   readonly claimed: Set<string>
   readonly retryQueue: RetryEntry[]
   readonly tokenTotals: { costUsd: number; turns: number }
@@ -131,6 +131,7 @@ function filterCandidates(issues: Issue[], state: OrchestratorState, config: Sym
       const id = identifier(issue)
       if (runningIds.has(id)) return false
       if (state.claimed.has(id)) return false
+      if (state.completed.has(id)) return false
 
       // Must be in active state and not terminal
       if (!isActiveState(issue.state, config)) return false
@@ -340,7 +341,6 @@ function dispatchIssue(
 
   return Effect.gen(function* () {
     const agentEffect = runAgent(issue, workflow, hooks, attempt).pipe(
-      // Normal exit: schedule continuation retry (1s)
       Effect.tap((result) =>
         Effect.gen(function* () {
           yield* PubSub.publish(pubsub, {
@@ -354,7 +354,7 @@ function dispatchIssue(
             const running = new Map(s.running)
             running.delete(id)
             const completed = new Set(s.completed)
-            completed.add(id)
+            if (result.hasLinkedPR) completed.add(id)
             return {
               ...s,
               running,
@@ -363,15 +363,17 @@ function dispatchIssue(
                 costUsd: s.tokenTotals.costUsd + result.costUsd,
                 turns: s.tokenTotals.turns + result.numTurns,
               },
-              // Continuation retry: 1s delay, attempt=1
-              retryQueue: [...s.retryQueue, {
-                id,
-                identifier: id,
-                attempt: 1,
-                retryAt: Date.now() + 1000,
-                error: null,
-                isContinuation: true,
-              }],
+              // If no linked PR, schedule a continuation retry to try again
+              retryQueue: result.hasLinkedPR
+                ? s.retryQueue
+                : [...s.retryQueue, {
+                    id,
+                    identifier: id,
+                    attempt: (attempt ?? 0) + 1,
+                    retryAt: Date.now() + 1000,
+                    error: null,
+                    isContinuation: true,
+                  }],
             }
           })
         }),
@@ -461,6 +463,17 @@ function processRetries(
     )
 
     for (const entry of ready) {
+      // Skip issues already completed — don't re-dispatch continuation retries
+      const currentCheck = yield* Ref.get(stateRef)
+      if (currentCheck.completed.has(entry.id)) {
+        yield* Ref.update(stateRef, (s) => {
+          const claimed = new Set(s.claimed)
+          claimed.delete(entry.id)
+          return { ...s, claimed }
+        })
+        continue
+      }
+
       const issue = candidates.find((c) => identifier(c) === entry.id)
 
       if (!issue) {

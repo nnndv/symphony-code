@@ -25,6 +25,12 @@ export function startTui(
     const tuiState = yield* Ref.make(initialTuiState)
     const sub = yield* PubSub.subscribe(pubsub)
 
+    // Enter alternate screen buffer to avoid polluting terminal history
+    process.stdout.write("\x1b[?1049h")
+    yield* Effect.addFinalizer(() =>
+      Effect.sync(() => process.stdout.write("\x1b[?1049l")),
+    )
+
     // Event consumer fiber
     yield* Effect.fork(
       Effect.forever(

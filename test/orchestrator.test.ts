@@ -178,7 +178,6 @@ test("dry-run: dispatches issues and emits full event lifecycle", async () => {
   expect(tags).toContain("IssueDispatched")
   expect(tags).toContain("AgentStarted")
   expect(tags).toContain("AgentCompleted")
-  expect(tags).toContain("AgentCompletedWithoutPR")
   expect(tags).toContain("IssueCompleted")
 
   // Both issues should complete
@@ -367,12 +366,11 @@ test("dry-run: event ordering is correct per issue", async () => {
       .filter((e) => "issueNumber" in e && e.issueNumber === "1")
       .map((e) => e._tag)
 
-    // Expected order: Dispatched → AgentStarted → AgentCompleted → AgentCompletedWithoutPR → IssueCompleted
+    // Expected order: Dispatched → AgentStarted → AgentCompleted → IssueCompleted
     const expectedOrder = [
       "IssueDispatched",
       "AgentStarted",
       "AgentCompleted",
-      "AgentCompletedWithoutPR",
       "IssueCompleted",
     ]
 

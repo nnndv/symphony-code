@@ -22,6 +22,7 @@ export interface AgentResult {
   readonly result: string
   readonly costUsd: number
   readonly numTurns: number
+  readonly hasLinkedPR: boolean
   readonly exitReason: "normal" | "error"
 }
 
@@ -112,10 +113,12 @@ export function runAgent(
     // Best-effort after_run hook
     yield* afterRun(ws.path, issue, hooks, config.hookTimeoutMs)
 
-    // Verify a PR was actually created
-    const hasPR = yield* tracker.hasLinkedPR(id).pipe(
-      Effect.catchAll(() => Effect.succeed(false)),
-    )
+    // Verify a PR was actually created (dry-run always succeeds)
+    const hasPR = config.dryRun
+      ? true
+      : yield* tracker.hasLinkedPR(id).pipe(
+          Effect.catchAll(() => Effect.succeed(false)),
+        )
 
     const status = hasPR ? "Completed" : "Completed (no PR found)"
 
@@ -140,6 +143,7 @@ export function runAgent(
       result: lastResult,
       costUsd: totalCostUsd,
       numTurns: totalTurns,
+      hasLinkedPR: hasPR,
       exitReason: "normal",
     }
 
